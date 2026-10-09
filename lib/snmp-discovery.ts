@@ -56,6 +56,42 @@ function cartridgeModel(deviceModel: string, supplyName: string) {
   return supplyName || 'Modelo no informado';
 }
 
+async function canonTs3100InkLevels(ip: string): Promise<Map<'black' | 'color', number> | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch(`http://${ip}/JS_MDL/model.js`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+
+    const source = await response.text();
+    const colors = source.match(/var\s+inkCOL\s*=\s*\[([^\]]+)\]/)?.[1];
+    if (!colors) return null;
+
+    const colorNames = [...colors.matchAll(/['"]([^'"]+)['"]/g)].map((match) => match[1]);
+    const levels = new Map<'black' | 'color', number>();
+    const levelRows = [...source.matchAll(/inktank\[(\d+)\]\s*=\s*\[(\d+),\s*(\d+),\s*\d+\]/g)];
+
+    for (const match of levelRows) {
+      const colorIndex = Number(match[2]);
+      const levelIndex = Number(match[3]);
+      const kind = colorNames[colorIndex] === 'InkBlk' ? 'black' : colorNames[colorIndex] === 'InkClr' ? 'color' : null;
+      if (!kind) continue;
+
+      // Canon uses index 11 (Lv00X) for an empty cartridge.
+      levels.set(kind, levelIndex === 11 ? 0 : Math.max(0, Math.min(100, (10 - levelIndex) * 10)));
+    }
+
+    return levels.size ? levels : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function discoverDevice(ip: string): Promise<DiscoveredDevice> {
   return new Promise((resolve, reject) => {
     const session = snmp.createSession(ip, 'public', { timeout: 3000, retries: 1 });
@@ -74,8 +110,11 @@ export async function discoverDevice(ip: string): Promise<DiscoveredDevice> {
       optionalWalk(OIDS.supplyPercent),
       optionalWalk(OIDS.supplyMaximum),
       optionalWalk(OIDS.supplyLevel),
-    ]).then(([systemName, description, names, percentages, maximums, levels]) => {
+    ]).then(async ([systemName, description, names, percentages, maximums, levels]) => {
       const tonerNames = [...names.entries()];
+      const canonInkLevels = /ts3100/i.test(`${systemName} ${description}`)
+        ? await canonTs3100InkLevels(ip)
+        : null;
       const toners = tonerNames.map(([oid, name]) => {
         const suffix = oid.slice(OIDS.supplyDescription.length);
         const rawLevel = Number(levels.get(`${OIDS.supplyLevel}${suffix}`));
@@ -86,14 +125,19 @@ export async function discoverDevice(ip: string): Promise<DiscoveredDevice> {
         const validPercent = Number.isFinite(rawPercent) && rawPercent >= 0 && rawPercent <= 100
           ? Math.round(rawPercent)
           : null;
+        const canonPercent = /black|negro/i.test(name)
+          ? canonInkLevels?.get('black')
+          : /color/i.test(name)
+            ? canonInkLevels?.get('color')
+            : undefined;
         return {
           name: name || 'Tóner',
           model: cartridgeModel(systemName || description, name),
           level: validLevel,
           maximum: validMaximum,
-          percentage: validPercent ?? (validLevel !== null && validMaximum !== null
+          percentage: canonPercent ?? (validLevel !== null && validMaximum !== null
             ? Math.max(0, Math.min(100, Math.round((validLevel / validMaximum) * 100)))
-            : null),
+            : validPercent),
         };
       });
       const identity = brandAndModel(description, systemName);

@@ -91,7 +91,9 @@ La lectura depende de que el equipo:
 - Permita la comunidad `public`.
 - Exponga la tabla estándar de consumibles.
 
-Algunos equipos devuelven `-2` en el nivel absoluto, pero sí devuelven porcentaje. El lector usa el porcentaje directo cuando está disponible y calcula `nivel / máximo` en los demás casos. Por esto son compatibles modelos como Canon LBP6230dw y TS3100.
+Algunos equipos devuelven `-2` en el nivel absoluto, pero sí devuelven porcentaje. Cuando el nivel actual y el máximo son válidos, el lector calcula `nivel / máximo`; si no, usa el porcentaje directo. Esto evita tomar un porcentaje obsoleto cuando los campos de nivel son más precisos.
+
+La Canon TS3100 requiere una adaptación adicional: sus OID SNMP estándar pueden devolver `19%` para ambos depósitos aunque la interfaz web de Canon muestre valores diferentes. Para este modelo se consulta también `JS_MDL/model.js` en la interfaz web local de la impresora. Esa fuente informa el estado que muestra Canon, por ejemplo `0%` para un cartucho vacío y `70%` para el depósito de color. Si la interfaz web no está disponible, se conserva el valor SNMP como respaldo.
 
 El nombre reportado por la impresora se conserva como modelo del consumible. Por ejemplo:
 

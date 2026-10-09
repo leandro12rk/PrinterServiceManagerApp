@@ -67,7 +67,8 @@ export default function DocumentationPage() {
           </section>
           <section className="rounded-3xl bg-white p-6 shadow-md md:p-8">
             <h2 className="text-2xl font-black">Solución de problemas</h2>
-            <p className="mt-3 text-lg text-slate-700">Si aparece “Sin lectura”, verifica la IP, conectividad, SNMP y comunidad. Algunos fabricantes solo publican porcentaje y otros publican nivel máximo; la aplicación admite ambos formatos.</p>
+            <p className="mt-3 text-lg text-slate-700">Si aparece “Sin lectura”, verifica la IP, conectividad, SNMP y comunidad. Cuando la impresora publica nivel actual y máximo, la aplicación calcula el porcentaje con esos valores; si no, usa el porcentaje directo que entrega el fabricante.</p>
+            <p className="mt-4 text-lg text-slate-700">En la Canon TS3100, la aplicación contrasta los OID SNMP con la interfaz web local de Canon porque el valor estándar puede no coincidir con el indicador oficial. Pulsa <strong>Actualizar</strong> para volver a consultar ambos depósitos.</p>
             <p className="mt-4 rounded-xl bg-amber-50 p-4 text-amber-900"><strong>Aviso:</strong> la aplicación consulta y administra registros, pero no apaga ni reinicia físicamente las impresoras.</p>
           </section>
         </article>
