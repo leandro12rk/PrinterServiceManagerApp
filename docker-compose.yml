@@ -21,12 +21,12 @@ services:
 
   printer-app:
     build: .
-    image: leandrork12/printer-service-manager:latest/printer-service-manager:latest
+    image: leandrork12/printer-service-manager:latest
     container_name: printer-service-manager-app
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/printerdb?schema=public
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/printerdb?schema=public
     depends_on:
       postgres:
         condition: service_healthy
