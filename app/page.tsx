@@ -1,69 +1,128 @@
-import Image from "next/image";
+'use client';
+
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { DeviceCard } from '@/components/DeviceCard';
+import { DeviceForm } from '@/components/DeviceForm';
+import { ExportData } from '@/components/ExportData';
+import { Footer } from '@/components/Footer';
+import { Header } from '@/components/Header';
+import { StatusMessage } from '@/components/StatusMessage';
+import { Device, Filter, FormValues, Tab } from '@/components/types';
+
+const emptyForm: FormValues = { ip: '', kind: 'printer', active: true };
 
 export default function Home() {
+  const [tab, setTab] = useState<Tab>('printers');
+  const [printers, setPrinters] = useState<Device[]>([]);
+  const [scanners, setScanners] = useState<Device[]>([]);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [form, setForm] = useState<FormValues>(emptyForm);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<{ tab: Tab; id: number } | null>(null);
+  const [menuId, setMenuId] = useState<number | null>(null);
+  const [modal, setModal] = useState<{ title: string; text: string; action?: () => void } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'json' | 'sql'>('json');
+  const devices = tab === 'printers' ? printers : scanners;
+  const visible = useMemo(() => devices.filter((device) => filter === 'all' || (filter === 'active' ? device.active : !device.active)), [devices, filter]);
+
+  useEffect(() => { void Promise.all([load('printers'), load('scanners')]); }, []);
+  useEffect(() => {
+    const closeMenu = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest('[data-device-menu]')) setMenuId(null); };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuId(null); };
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('click', closeMenu); document.removeEventListener('keydown', closeOnEscape); };
+  }, []);
+
+  async function load(type: Tab) {
+    const response = await fetch(`/api/${type}`);
+    if (!response.ok) throw new Error('No se pudieron cargar los dispositivos');
+    const data = await response.json();
+    if (type === 'printers') setPrinters(data); else setScanners(data);
+  }
+  function notify(text: string, type: 'success' | 'warning' | 'error' = 'success') {
+    setMessage(type === 'success' ? text : null);
+    setWarning(type === 'warning' ? text : null);
+    setError(type === 'error' ? text : null);
+  }
+  function openCreate() { setEditing(null); setForm({ ...emptyForm, kind: tab === 'printers' ? 'printer' : 'scanner' }); setShowForm(true); }
+  function openEdit(device: Device) {
+    setEditing({ tab, id: device.id });
+    setForm({ ip: device.ip, kind: tab === 'printers' ? (device.isMultifunction ? 'multifunction' : 'printer') : 'scanner', active: device.active });
+    setShowForm(true); setMenuId(null); window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  async function discover(ip: string) {
+    const response = await fetch('/api/discover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip }) });
+    const data = await response.json(); if (!response.ok) throw new Error(data.error); return data;
+  }
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setSaving(true); setError(null);
+    try {
+      const found = await discover(form.ip.trim());
+      const payload = { ...found, active: form.active, isMultifunction: form.kind === 'multifunction' };
+      if (editing) {
+        const response = await fetch(`/api/${editing.tab}/${editing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await response.json(); if (!response.ok) throw new Error(data.error); await load(editing.tab);
+      } else {
+        const types: Tab[] = form.kind === 'multifunction' ? ['printers', 'scanners'] : [form.kind === 'printer' ? 'printers' : 'scanners'];
+        for (const type of types) {
+          const response = await fetch(`/api/${type}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const data = await response.json(); if (!response.ok) throw new Error(data.error); await load(type);
+        }
+      }
+      setShowForm(false); notify('Dispositivo registrado con datos obtenidos de la IP.');
+    } catch (saveError) { notify(saveError instanceof Error ? saveError.message : 'No se pudo registrar el dispositivo', 'error'); }
+    finally { setSaving(false); }
+  }
+  function askDelete(device: Device) {
+    setMenuId(null); setModal({ title: 'Eliminar dispositivo', text: `¿Eliminar "${device.name}"? Esta acción no se puede deshacer.`, action: async () => {
+      const response = await fetch(`/api/${tab}/${device.id}`, { method: 'DELETE' });
+      if (!response.ok) { const data = await response.json(); throw new Error(data.error); }
+      await load(tab); notify('Registro eliminado correctamente.');
+    } });
+  }
+  async function refreshToner(device: Device) {
+    setMenuId(null);
+    try {
+      const response = await fetch(`/api/printers/${device.id}/toner`, { method: 'POST' });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error);
+      await load('printers'); notify(data.toners?.length ? 'Niveles de tóner actualizados.' : 'La impresora no informó niveles de tóner por SNMP.', data.toners?.length ? 'success' : 'warning');
+    } catch (refreshError) { notify(refreshError instanceof Error ? refreshError.message : 'No se pudo actualizar el tóner', 'error'); }
+  }
+  async function confirmModal() {
+    if (!modal?.action) return;
+    try { await modal.action(); setModal(null); } catch (actionError) { notify(actionError instanceof Error ? actionError.message : 'No se pudo completar la acción', 'error'); setModal(null); }
+  }
+  async function download() {
+    const response = await fetch(`/api/backup?format=${exportFormat}`);
+    if (!response.ok) { notify('No se pudo generar la descarga.', 'error'); return; }
+    const blob = await response.blob();
+    const filename = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/i)?.[1] ?? `data-registrada.${exportFormat}`;
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(objectUrl);
+    notify(`Data registrada descargada en ${exportFormat.toUpperCase()}.`);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="min-h-screen bg-slate-100 px-4 py-6 text-slate-900 md:px-8">
+      <div className="mx-auto max-w-6xl">
+        <Header />
+        <StatusMessage message={message} error={error} warning={warning} onClose={() => { setError(null); setWarning(null); setMessage(null); }} />
+        <ExportData exportFormat={exportFormat} onExportFormatChange={setExportFormat} onDownload={download} />
+        <nav className="mb-6 flex flex-wrap gap-3"><button onClick={() => { setTab('printers'); setFilter('all'); }} className={`rounded-2xl px-6 py-4 text-xl font-black shadow ${tab === 'printers' ? 'bg-blue-600 text-white' : 'bg-white'}`}>Impresoras ({printers.length})</button><button onClick={() => { setTab('scanners'); setFilter('all'); }} className={`rounded-2xl px-6 py-4 text-xl font-black shadow ${tab === 'scanners' ? 'bg-emerald-600 text-white' : 'bg-white'}`}>Escáneres ({scanners.length})</button><button onClick={openCreate} className="rounded-2xl bg-slate-800 px-6 py-4 text-xl font-black text-white">+ Registrar por IP</button></nav>
+        {showForm && <DeviceForm editing={Boolean(editing)} form={form} saving={saving} onChange={setForm} onSubmit={save} onClose={() => setShowForm(false)} />}
+        <section className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-black">{tab === 'printers' ? 'Impresoras' : 'Escáneres'}</h2><p className="text-slate-500">{visible.length} dispositivo(s)</p></div><div className="flex gap-1 rounded-xl bg-white p-1 shadow">{(['all', 'active', 'inactive'] as Filter[]).map((value) => <button key={value} onClick={() => setFilter(value)} className={`rounded-lg px-3 py-2 font-bold ${filter === value ? 'bg-slate-800 text-white' : ''}`}>{value === 'all' ? 'Todos' : value === 'active' ? 'Activos' : 'Apagados'}</button>)}</div></section>
+        <section className="grid gap-5 md:grid-cols-2">{visible.map((device) => <DeviceCard key={device.id} device={device} isPrinter={tab === 'printers'} menuOpen={menuId === device.id} onToggleMenu={() => setMenuId(menuId === device.id ? null : device.id)} onEdit={() => openEdit(device)} onDelete={() => askDelete(device)} onRefreshToner={() => refreshToner(device)} />)}</section>
+        {visible.length === 0 && <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-12 text-center text-xl font-bold text-slate-500">No hay dispositivos en este filtro.</div>}
+        <Footer />
+        {modal && <ConfirmModal title={modal.title} text={modal.text} onCancel={() => setModal(null)} onConfirm={confirmModal} />}
+      </div>
+    </main>
   );
 }

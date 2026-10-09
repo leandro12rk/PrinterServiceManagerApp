@@ -1,0 +1,32 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Printer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  ip        String   @unique
+  brand     String
+  model     String?
+  type      String   @default("Impresora")
+  active    Boolean  @default(true)
+  isMultifunction Boolean @default(false)
+  toners    Json?
+  createdAt DateTime @default(now())
+}
+
+model Scanner {
+  id        Int      @id @default(autoincrement())
+  name      String
+  ip        String   @unique
+  brand     String
+  model     String?
+  active    Boolean  @default(true)
+  isMultifunction Boolean @default(false)
+  createdAt DateTime @default(now())
+}
