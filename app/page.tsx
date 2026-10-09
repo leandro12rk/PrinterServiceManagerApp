@@ -27,6 +27,7 @@ export default function Home() {
   const [warning, setWarning] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [exportFormat, setExportFormat] = useState<'json' | 'sql'>('json');
+  const [showExport, setShowExport] = useState(false);
   const devices = tab === 'printers' ? printers : scanners;
   const visible = useMemo(() => devices.filter((device) => filter === 'all' || (filter === 'active' ? device.active : !device.active)), [devices, filter]);
 
@@ -37,6 +38,11 @@ export default function Home() {
     document.addEventListener('click', closeMenu);
     document.addEventListener('keydown', closeOnEscape);
     return () => { document.removeEventListener('click', closeMenu); document.removeEventListener('keydown', closeOnEscape); };
+  }, []);
+  useEffect(() => {
+    const closeExportOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setShowExport(false); };
+    document.addEventListener('keydown', closeExportOnEscape);
+    return () => document.removeEventListener('keydown', closeExportOnEscape);
   }, []);
 
   async function load(type: Tab) {
@@ -112,9 +118,14 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-6 text-slate-900 md:px-8">
       <div className="mx-auto max-w-6xl">
-        <Header />
+        <Header
+          printerCount={printers.length}
+          scannerCount={scanners.length}
+          activeCount={[...printers, ...scanners].filter((device) => device.active).length}
+          onOpenExport={() => setShowExport(true)}
+        />
         <StatusMessage message={message} error={error} warning={warning} onClose={() => { setError(null); setWarning(null); setMessage(null); }} />
-        <ExportData exportFormat={exportFormat} onExportFormatChange={setExportFormat} onDownload={download} />
+        {showExport && <ExportData exportFormat={exportFormat} onExportFormatChange={setExportFormat} onDownload={download} onClose={() => setShowExport(false)} />}
         <nav className="mb-6 flex flex-wrap gap-3"><button onClick={() => { setTab('printers'); setFilter('all'); }} className={`rounded-2xl px-6 py-4 text-xl font-black shadow ${tab === 'printers' ? 'bg-blue-600 text-white' : 'bg-white'}`}>Impresoras ({printers.length})</button><button onClick={() => { setTab('scanners'); setFilter('all'); }} className={`rounded-2xl px-6 py-4 text-xl font-black shadow ${tab === 'scanners' ? 'bg-emerald-600 text-white' : 'bg-white'}`}>Escáneres ({scanners.length})</button><button onClick={openCreate} className="rounded-2xl bg-slate-800 px-6 py-4 text-xl font-black text-white">+ Registrar por IP</button></nav>
         {showForm && <DeviceForm editing={Boolean(editing)} form={form} saving={saving} onChange={setForm} onSubmit={save} onClose={() => setShowForm(false)} />}
         <section className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-black">{tab === 'printers' ? 'Impresoras' : 'Escáneres'}</h2><p className="text-slate-500">{visible.length} dispositivo(s)</p></div><div className="flex gap-1 rounded-xl bg-white p-1 shadow">{(['all', 'active', 'inactive'] as Filter[]).map((value) => <button key={value} onClick={() => setFilter(value)} className={`rounded-lg px-3 py-2 font-bold ${filter === value ? 'bg-slate-800 text-white' : ''}`}>{value === 'all' ? 'Todos' : value === 'active' ? 'Activos' : 'Apagados'}</button>)}</div></section>
