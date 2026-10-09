@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { DeviceCard } from '@/components/DeviceCard';
 import { DeviceForm } from '@/components/DeviceForm';
@@ -19,6 +19,7 @@ export default function Home() {
   const [filter, setFilter] = useState<Filter>('all');
   const [form, setForm] = useState<FormValues>(emptyForm);
   const [showForm, setShowForm] = useState(false);
+  const [closingForm, setClosingForm] = useState(false);
   const [editing, setEditing] = useState<{ tab: Tab; id: number } | null>(null);
   const [menuId, setMenuId] = useState<number | null>(null);
   const [modal, setModal] = useState<{ title: string; text: string; action?: () => void } | null>(null);
@@ -28,8 +29,17 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [exportFormat, setExportFormat] = useState<'json' | 'sql'>('json');
   const [showExport, setShowExport] = useState(false);
+  const [closingExport, setClosingExport] = useState(false);
   const devices = tab === 'printers' ? printers : scanners;
   const visible = useMemo(() => devices.filter((device) => filter === 'all' || (filter === 'active' ? device.active : !device.active)), [devices, filter]);
+  const closeExport = useCallback(() => {
+    if (closingExport) return;
+    setClosingExport(true);
+    window.setTimeout(() => {
+      setShowExport(false);
+      setClosingExport(false);
+    }, 320);
+  }, [closingExport]);
 
   useEffect(() => { void Promise.all([load('printers'), load('scanners')]); }, []);
   useEffect(() => {
@@ -40,10 +50,10 @@ export default function Home() {
     return () => { document.removeEventListener('click', closeMenu); document.removeEventListener('keydown', closeOnEscape); };
   }, []);
   useEffect(() => {
-    const closeExportOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setShowExport(false); };
+    const closeExportOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') closeExport(); };
     document.addEventListener('keydown', closeExportOnEscape);
     return () => document.removeEventListener('keydown', closeExportOnEscape);
-  }, []);
+  }, [closeExport]);
 
   async function load(type: Tab) {
     const response = await fetch(`/api/${type}`);
@@ -56,11 +66,22 @@ export default function Home() {
     setWarning(type === 'warning' ? text : null);
     setError(type === 'error' ? text : null);
   }
-  function openCreate() { setEditing(null); setForm({ ...emptyForm, kind: tab === 'printers' ? 'printer' : 'scanner' }); setShowForm(true); }
+  function openCreate() { setEditing(null); setClosingForm(false); setForm({ ...emptyForm, kind: tab === 'printers' ? 'printer' : 'scanner' }); setShowForm(true); }
+  function openExport() {
+    setClosingExport(false);
+    setShowExport(true);
+  }
+  function closeForm() {
+    setClosingForm(true);
+    window.setTimeout(() => {
+      setShowForm(false);
+      setClosingForm(false);
+    }, 500);
+  }
   function openEdit(device: Device) {
     setEditing({ tab, id: device.id });
     setForm({ ip: device.ip, kind: tab === 'printers' ? (device.isMultifunction ? 'multifunction' : 'printer') : 'scanner', active: device.active });
-    setShowForm(true); setMenuId(null); window.scrollTo({ top: 0, behavior: 'smooth' });
+    setClosingForm(false); setShowForm(true); setMenuId(null); window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   async function discover(ip: string) {
     const response = await fetch('/api/discover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip }) });
@@ -81,7 +102,7 @@ export default function Home() {
           const data = await response.json(); if (!response.ok) throw new Error(data.error); await load(type);
         }
       }
-      setShowForm(false); notify('Dispositivo registrado con datos obtenidos de la IP.');
+      closeForm(); notify('Dispositivo registrado con datos obtenidos de la IP.');
     } catch (saveError) { notify(saveError instanceof Error ? saveError.message : 'No se pudo registrar el dispositivo', 'error'); }
     finally { setSaving(false); }
   }
@@ -122,14 +143,20 @@ export default function Home() {
           printerCount={printers.length}
           scannerCount={scanners.length}
           activeCount={[...printers, ...scanners].filter((device) => device.active).length}
-          onOpenExport={() => setShowExport(true)}
+          onOpenExport={openExport}
         />
         <StatusMessage message={message} error={error} warning={warning} onClose={() => { setError(null); setWarning(null); setMessage(null); }} />
-        {showExport && <ExportData exportFormat={exportFormat} onExportFormatChange={setExportFormat} onDownload={download} onClose={() => setShowExport(false)} />}
+        {showExport && <ExportData exportFormat={exportFormat} onExportFormatChange={setExportFormat} onDownload={download} onClose={closeExport} isClosing={closingExport} />}
         <nav className="mb-6 flex flex-wrap gap-3"><button onClick={() => { setTab('printers'); setFilter('all'); }} className={`rounded-2xl px-6 py-4 text-xl font-black shadow ${tab === 'printers' ? 'bg-blue-600 text-white' : 'bg-white'}`}>Impresoras ({printers.length})</button><button onClick={() => { setTab('scanners'); setFilter('all'); }} className={`rounded-2xl px-6 py-4 text-xl font-black shadow ${tab === 'scanners' ? 'bg-emerald-600 text-white' : 'bg-white'}`}>Escáneres ({scanners.length})</button><button onClick={openCreate} className="rounded-2xl bg-slate-800 px-6 py-4 text-xl font-black text-white">+ Registrar por IP</button></nav>
-        {showForm && <DeviceForm editing={Boolean(editing)} form={form} saving={saving} onChange={setForm} onSubmit={save} onClose={() => setShowForm(false)} />}
+        {showForm && <div className={`animate-device-form ${closingForm ? 'is-closing' : ''}`}><DeviceForm editing={Boolean(editing)} form={form} saving={saving} onChange={setForm} onSubmit={save} onClose={closeForm} /></div>}
         <section className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-black">{tab === 'printers' ? 'Impresoras' : 'Escáneres'}</h2><p className="text-slate-500">{visible.length} dispositivo(s)</p></div><div className="flex gap-1 rounded-xl bg-white p-1 shadow">{(['all', 'active', 'inactive'] as Filter[]).map((value) => <button key={value} onClick={() => setFilter(value)} className={`rounded-lg px-3 py-2 font-bold ${filter === value ? 'bg-slate-800 text-white' : ''}`}>{value === 'all' ? 'Todos' : value === 'active' ? 'Activos' : 'Apagados'}</button>)}</div></section>
-        <section className="grid gap-5 md:grid-cols-2">{visible.map((device) => <DeviceCard key={device.id} device={device} isPrinter={tab === 'printers'} menuOpen={menuId === device.id} onToggleMenu={() => setMenuId(menuId === device.id ? null : device.id)} onEdit={() => openEdit(device)} onDelete={() => askDelete(device)} onRefreshToner={() => refreshToner(device)} />)}</section>
+        <section key={`${tab}-${filter}`} className="animate-device-panel grid gap-5 md:grid-cols-2">
+          {visible.map((device, index) => (
+            <div key={device.id} className="animate-device-card" style={{ animationDelay: `${index * 110}ms` }}>
+              <DeviceCard device={device} isPrinter={tab === 'printers'} menuOpen={menuId === device.id} onToggleMenu={() => setMenuId(menuId === device.id ? null : device.id)} onEdit={() => openEdit(device)} onDelete={() => askDelete(device)} onRefreshToner={() => refreshToner(device)} />
+            </div>
+          ))}
+        </section>
         {visible.length === 0 && <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-12 text-center text-xl font-bold text-slate-500">No hay dispositivos en este filtro.</div>}
         <Footer />
         {modal && <ConfirmModal title={modal.title} text={modal.text} onCancel={() => setModal(null)} onConfirm={confirmModal} />}

@@ -1,7 +1,9 @@
+name: printer-service-manager
+
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: printer_db
+    container_name: printer-service-manager-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -11,16 +13,23 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d printerdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   printer-app:
     build: .
-    container_name: printer_service_manager
+    image: leandrork12/printer-service-manager:latest/printer-service-manager:latest
+    container_name: printer-service-manager-app
     ports:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/printerdb?schema=public
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: always
 
 volumes:

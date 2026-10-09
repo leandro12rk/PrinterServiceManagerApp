@@ -160,6 +160,32 @@ Detener servicios:
 docker compose down
 ```
 
+### Imágenes y publicación en Docker Hub
+
+El compose usa nombres explícitos para facilitar el despliegue:
+
+- Contenedor de la aplicación: `printer-service-manager-app`
+- Contenedor de PostgreSQL: `printer-service-manager-db`
+- Imagen de la aplicación: `leandro12rk/printer-service-manager:latest`
+- PostgreSQL: `postgres:15-alpine`
+
+`postgres:15-alpine` es una imagen oficial de PostgreSQL fijada a una rama estable y compatible con el volumen de datos actual. La aplicación espera a que PostgreSQL pase su comprobación de salud antes de iniciar.
+
+Si tu usuario de Docker Hub es diferente, cambia el valor `image` de `printer-app` en [`docker-compose.yml`](./docker-compose.yml). Después puedes construir, publicar y descargar la imagen de la aplicación con:
+
+```powershell
+docker compose build printer-app
+docker login
+docker push leandro12rk/printer-service-manager:latest
+```
+
+En otra máquina, descarga la imagen y levanta los servicios con:
+
+```powershell
+docker pull leandro12rk/printer-service-manager:latest
+docker compose up -d
+```
+
 ## Desarrollo local
 
 Requisitos:

@@ -26,3 +26,129 @@ body {
   /* Aumentamos el tamaño base para personas mayores */
   font-size: 18px;
 }
+
+@keyframes soft-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soft-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.98);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    max-height: 700px;
+  }
+}
+
+@keyframes soft-form-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    max-height: 700px;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.98);
+    max-height: 0;
+  }
+}
+
+@keyframes soft-modal-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes soft-modal-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes soft-modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes soft-modal-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+
+.animate-device-panel {
+  animation: soft-fade-up 700ms ease both;
+}
+
+.animate-device-card {
+  animation: soft-fade-up 750ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-device-form {
+  overflow: hidden;
+  animation: soft-form-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-device-form.is-closing {
+  animation: soft-form-out 500ms ease both;
+}
+
+.animate-export-modal {
+  animation: soft-modal-in 350ms ease both;
+}
+
+.animate-export-modal section {
+  animation: soft-modal-panel-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-export-modal.is-closing {
+  animation: soft-modal-out 300ms ease both;
+}
+
+.animate-export-modal.is-closing section {
+  animation: soft-modal-panel-out 300ms ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-device-panel,
+  .animate-device-card,
+  .animate-device-form,
+  .animate-device-form.is-closing {
+    animation: none;
+  }
+
+  .animate-export-modal,
+  .animate-export-modal section,
+  .animate-export-modal.is-closing,
+  .animate-export-modal.is-closing section {
+    animation: none;
+  }
+}

@@ -9,16 +9,17 @@ interface ExportDataProps {
   onExportFormatChange: (format: ExportFormat) => void;
   onDownload: () => void;
   onClose: () => void;
+  isClosing: boolean;
 }
 
-export function ExportData({ exportFormat, onExportFormatChange, onDownload, onClose }: ExportDataProps) {
+export function ExportData({ exportFormat, onExportFormatChange, onDownload, onClose, isClosing }: ExportDataProps) {
   function handleFormatChange(event: ChangeEvent<HTMLSelectElement>) {
     onExportFormatChange(event.target.value as ExportFormat);
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+      className={`animate-export-modal fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm ${isClosing ? 'is-closing' : ''}`}
       role="presentation"
       onMouseDown={onClose}
     >
