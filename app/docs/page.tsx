@@ -42,6 +42,15 @@ export default function DocumentationPage() {
             </ul>
           </section>
           <section className="rounded-3xl bg-white p-6 shadow-md md:p-8">
+            <h2 className="text-2xl font-black">Estado del equipo</h2>
+            <p className="mt-3 text-lg text-slate-700">El estado no depende únicamente del valor guardado en la base de datos. Al cargar el panel y cada 30 segundos, el servidor intenta consultar cada IP por SNMP.</p>
+            <ul className="mt-4 list-disc space-y-2 pl-6 text-lg text-slate-700">
+              <li>Si responde correctamente, aparece como <strong>Activa</strong>.</li>
+              <li>Si se agota el tiempo de espera, la IP es inaccesible o SNMP está apagado, aparece como <strong>Apagada</strong>.</li>
+              <li>El contenedor de la aplicación debe poder alcanzar la red local del equipo.</li>
+            </ul>
+          </section>
+          <section className="rounded-3xl bg-white p-6 shadow-md md:p-8">
             <h2 className="text-2xl font-black">Descargar información</h2>
             <p className="mt-3 text-lg text-slate-700">Selecciona el formato en la tarjeta de exportación del panel:</p>
             <ul className="mt-4 list-disc space-y-2 pl-6 text-lg text-slate-700">

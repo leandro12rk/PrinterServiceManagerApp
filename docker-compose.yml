@@ -2,7 +2,7 @@ name: printer-service-manager
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: printer-service-manager-db
     environment:
       POSTGRES_USER: postgres

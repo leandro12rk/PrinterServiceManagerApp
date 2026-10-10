@@ -1,10 +1,29 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { discoverDevice } from '@/lib/snmp-discovery';
 
 export async function GET() {
   try {
     const scanners = await prisma.scanner.findMany();
-    return NextResponse.json(scanners);
+    const synchronizedScanners = await Promise.all(scanners.map(async (scanner) => {
+      let active = false;
+      try {
+        await discoverDevice(scanner.ip);
+        active = true;
+      } catch {
+        active = false;
+      }
+
+      if (active !== scanner.active) {
+        return prisma.scanner.update({
+          where: { id: scanner.id },
+          data: { active },
+        });
+      }
+
+      return scanner;
+    }));
+    return NextResponse.json(synchronizedScanners);
   } catch (error) {
     return NextResponse.json({ error: 'Error al obtener escáneres' }, { status: 500 });
   }

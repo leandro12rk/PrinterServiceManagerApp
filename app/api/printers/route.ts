@@ -1,10 +1,29 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { discoverDevice } from '@/lib/snmp-discovery';
 
 export async function GET() {
   try {
     const printers = await prisma.printer.findMany();
-    return NextResponse.json(printers);
+    const synchronizedPrinters = await Promise.all(printers.map(async (printer) => {
+      let active = false;
+      try {
+        await discoverDevice(printer.ip);
+        active = true;
+      } catch {
+        active = false;
+      }
+
+      if (active !== printer.active) {
+        return prisma.printer.update({
+          where: { id: printer.id },
+          data: { active },
+        });
+      }
+
+      return printer;
+    }));
+    return NextResponse.json(synchronizedPrinters);
   } catch (error) {
     return NextResponse.json({ error: 'Error al obtener impresoras' }, { status: 500 });
   }

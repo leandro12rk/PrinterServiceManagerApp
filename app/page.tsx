@@ -41,7 +41,12 @@ export default function Home() {
     }, 320);
   }, [closingExport]);
 
-  useEffect(() => { void Promise.all([load('printers'), load('scanners')]); }, []);
+  useEffect(() => {
+    const refreshDevices = () => void Promise.all([load('printers'), load('scanners')]);
+    refreshDevices();
+    const interval = window.setInterval(refreshDevices, 30000);
+    return () => window.clearInterval(interval);
+  }, []);
   useEffect(() => {
     const closeMenu = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest('[data-device-menu]')) setMenuId(null); };
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuId(null); };

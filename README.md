@@ -7,7 +7,7 @@ Aplicación web para registrar y administrar impresoras, escáneres y equipos mu
 - Registro por IP sin escribir manualmente nombre, marca o modelo.
 - Selector de tipo: impresora, escáner o impresora multifunción.
 - Un equipo multifunción se guarda en las vistas de impresoras y escáneres.
-- Estado manual del dispositivo: activa o apagada.
+- Estado de disponibilidad: activa cuando responde por SNMP y apagada o inaccesible cuando no responde.
 - CRUD completo para impresoras y escáneres.
 - Consulta y actualización de tinta/tóner mediante SNMP.
 - Barras de consumibles:
@@ -42,6 +42,7 @@ La aplicación recopila y almacena únicamente datos técnicos del dispositivo:
 - Estado activo/apagado y si el equipo es multifunción.
 - Consumibles detectados: nombre, modelo de cartucho, nivel, máximo y porcentaje.
 - La comunidad SNMP se usa para consultar el equipo, pero no se exporta ni se guarda.
+- La disponibilidad se verifica al cargar la lista y cada 30 segundos. Una respuesta SNMP exitosa marca el equipo como activo; un tiempo de espera, una IP inaccesible o SNMP deshabilitado lo marca como apagado/inaccesible.
 
 ## Arquitectura
 
@@ -229,4 +230,4 @@ DATABASE_URL=postgresql://postgres:password@postgres:5432/printerdb?schema=publi
 - SNMPv3 y comunidades SNMP distintas de `public` todavía no tienen configuración desde la interfaz.
 - El nombre de modelo del cartucho depende de la descripción que publique el fabricante por SNMP.
 - La aplicación no envía comandos de apagado ni reinicio; esas operaciones dependen del fabricante y se retiraron para evitar mostrar acciones que no son confiables.
-- El estado activa/apagada se administra desde la aplicación y no es un ping automático continuo.
+- El estado activa/apagada se valida automáticamente por SNMP al cargar la lista y cada 30 segundos. Si el equipo no responde, se muestra como apagado o inaccesible.
